@@ -3,12 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Postal Code Input</title>
+  <title>Find a Diving Club</title>
   <style>
+    body {
+      background: #1a1a1a;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      text-align: center;
+    }
     .postal-container {
       background: #000000;
       padding: 20px;
-      text-align: center;
+      border-radius: 4px;
     }
     #postalCode {
       padding: 10px;
@@ -17,12 +27,111 @@
       border-radius: 4px;
       color: #fff;
       background: #000000;
+      margin-right: 10px;
+    }
+    #searchButton {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: #fff;
+      cursor: pointer;
+    }
+    #searchButton:hover {
+      background: #0056b3;
+    }
+    #results {
+      margin-top: 20px;
+    }
+    .club-result {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #333;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
-  <div class="postal-container">
-    <input type="text" id="postalCode" placeholder="e.g., A1B 2C3">
+  <div class="container">
+    <h1>Find a Diving Club</h1>
+    <div class="postal-container">
+      <input type="text" id="postalCode" placeholder="e.g., A1B 2C3">
+      <button id="searchButton">Search</button>
+    </div>
+    <div id="results"></div>
   </div>
+
+  <script>
+    const clubs = [
+      { name: "Etobicoke Diving Club", address: "590 Rathburn Rd, Etobicoke, ON M9C 3T3", lat: 43.6502, lon: -79.5844, phone: "416-622-6001", website: "http://www.etobicokediving.org/" },
+      { name: "Ottawa National Diving Club", address: "1701 Woodroffe Ave, Ottawa, ON K2G 1W2", lat: 45.3176, lon: -75.8380, phone: "613-228-9270", website: "https://ottawanationaldiving.ca/" },
+      { name: "Pointe-Claire Diving Club", address: "1 Holiday Ave, Pointe-Claire, QC H9R 5N3", lat: 45.4474, lon: -73.8307, phone: "514-630-2941", website: "https://plongeonpointeclaire.com/" },
+      { name: "Dynamix Diving Club", address: "145 Pacific Ave, Toronto, ON M6P 2P4", lat: 43.6562, lon: -79.4510, phone: "416-769-7170", website: "http://www.dynamixdiving.com/" },
+      { name: "Club de plongeon de Montréal", address: 2000 Rue Viau, Montréal, QC H1V 3J7", lat: 45.5737, lon: -73.5536, phone: "514-252-3137", website: "http://plongeonmontreal.org/" },
+      { name: "Laval Diving Club", address: "4500 Boulevard de la Concorde E, Laval, QC H7C 1M6", lat: 45.6057, lon: -73.6687, phone: "450-688-8899", website: "" },
+      { name: "Saskatoon Diving Club", address: "500 3rd Ave N, Saskatoon, SK S7K 2J5", lat: 52.1310, lon: -106.6600, phone: "306-975-3100", website: "http://www.saskatoondive.com/" },
+      { name: "Calgary Diving Club", address: "1410 1 St NE, Calgary, AB T2E 7Z7", lat: 51.0494, lon: -114.0562, phone: "403-263-2676", website: "https://calgarydiving.com/" },
+      { name: "Vancouver Diving Board Club", address: "1500 W 57th Ave, Vancouver, BC V6P 1S6", lat: 49.2222, lon: -123.1316, phone: "604-261-1111", website: "http://www.vancouverdivingboard.com/" },
+      { name: "Club de plongeon des Bois-Francs", address: "500 boulevard Jutras Est, Victoriaville, QC G6P 0E4", lat: 46.0584, lon: -71.9590, phone: "819-758-8844", website: "" },
+    ];
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c; // Distance in km
+    }
+
+    async function findClubs() {
+      const postalCode = document.getElementById('postalCode').value.trim().toUpperCase().replace(/\s/g, '');
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p style="text-align: center; color: #666;">Searching...</p>';
+
+      if (!postalCode) {
+        resultsDiv.innerHTML = '<p style="text-align: center; color: red;">Please enter a postal code.</p>';
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?country=canada&postalcode=${postalCode}&format=json&limit=1`);
+        const data = await response.json();
+        if (data.length === 0) {
+          throw new Error('Postal code not found.');
+        }
+        const userLat = parseFloat(data[0].lat);
+        const userLon = parseFloat(data[0].lon);
+
+        const sortedClubs = clubs.map(club => ({
+          ...club,
+          distance: haversineDistance(userLat, userLon, club.lat, club.lon)
+        })).sort((a, b) => a.distance - b.distance).slice(0, 5);
+
+        resultsDiv.innerHTML = sortedClubs.map(club => `
+          <div class="club-result">
+            <strong>${club.name}</strong><br>
+            ${club.address}<br>
+            ${club.phone ? `Phone: ${club.phone}<br>` : ''}
+            ${club.website ? `<a href="${club.website}" target="_blank" style="color: #007bff;">Website</a><br>` : ''}
+            <em>Approx. ${Math.round(club.distance)} km away</em>
+          </div>
+        `).join('');
+      } catch (error) {
+        resultsDiv.innerHTML = '<p style="text-align: center; color: red;">Could not find location. Showing all clubs instead.</p>' + clubs.map(club => `
+          <div class="club-result">
+            <strong>${club.name}</strong><br>
+            ${club.address}<br>
+            ${club.phone ? `Phone: ${club.phone}<br>` : ''}
+            ${club.website ? `<a href="${club.website}" target="_blank" style="color: #007bff;">Website</a><br>` : ''}
+          </div>
+        `).join('');
+      }
+    }
+
+    document.getElementById('searchButton').addEventListener('click', findClubs);
+  </script>
 </body>
 </html>
